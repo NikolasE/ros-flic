@@ -1,0 +1,110 @@
+#!/usr/bin/env python
+
+from flic import flic
+import rospy
+from std_msgs.msg import String
+from flic_button.msg import flic_button
+
+# adapted from https://github.com/50ButtonsEach/fliclib-linux-dist/blob/master/samples/python/main.py
+
+# check flic::client::button::ButtonEventListener Class Reference
+class ButtonEventListener(flic.ButtonEventListener):
+
+    def __init__(self):
+        super(ButtonEventListener,self).__init__()
+        self.fo_pub = rospy.Publisher('flic_events', flic_button, queue_size=10)
+
+    def onReady(self, deviceId):
+        print "ready", deviceId
+        
+    def deviceId2Name(self, deviceId):
+        assert isinstance(deviceId, str)
+        if deviceId == "80:E4:DA:71:15:99":
+            return "FOO"
+        if deviceId == "80:E4:DA:71:19:9A":
+            return "BAR"
+        return deviceId
+                
+    def getHash(self):
+        return "main"
+
+    def onBatteryStatus(self, deviceId, battery):
+        print "Battery", battery
+
+    def onButtonSingleOrDoubleClickOrHold(self, deviceId, queued, timeDiff, isSingle, isDouble, isHold):
+        msg = flic_button()
+        msg.deviceId = deviceId
+        msg.name = self.deviceId2Name(deviceId)
+        msg.isSingle = isSingle
+        msg.isDouble = isDouble
+        msg.isHold = isHold
+        self.sendRosMsg(msg)
+        
+    def onConnecting(self, deviceId):
+        print "Connecting", deviceId 
+        
+    def onDisconnect(self, deviceId):
+        print "Disconnected", deviceId
+        
+    def onButtonUpOrDown(self, deviceId, queued, timeDiff, isUp, isDown):
+        # manager = client.getManager()
+        # button = manager.getButton(deviceId)
+        msg = flic_button()
+        msg.deviceId = deviceId
+        msg.name = self.deviceId2Name(deviceId)
+        msg.isUp = isUp
+        msg.isDown = isDown
+        self.sendRosMsg(msg)        
+        # print(button.getDeviceId() + (" up" if isUp else " down"))
+
+    def sendRosMsg(self, rosMsg):
+        self.fo_pub.publish(rosMsg)
+        rospy.sleep(0.2)
+        # print "publishing"
+
+
+def addButtonEventListener(button):
+    button.addButtonEventListener(buttonEventListener)
+
+class ButtonListener(flic.ButtonListener):
+    def getHash(self):
+        return "main"
+
+    def onButtonDiscover(self, button):
+        addButtonEventListener(button)
+
+
+class InitializedCallback(flic.CallbackVoid):
+    def callback(self):
+        # print("Initialized")
+        manager = client.getManager()
+        buttons = manager.getButtons()
+        try:
+            for button in buttons:
+                # print button.getDeviceId()
+                addButtonEventListener(button)
+            manager.addButtonListener(buttonListener)
+        except:
+            pass
+
+class UninitializedCallback(flic.CallbackBool):
+    def callback(self):
+        print("Uninitialized")
+
+
+if __name__ == "__main__":
+    
+    rospy.init_node("flic_bridge")
+    
+    client = flic.Client()
+    buttonEventListener = ButtonEventListener()
+    buttonListener = ButtonListener()
+
+    init = InitializedCallback()
+    uninit =  UninitializedCallback()
+    client.start(init.getCallback(), uninit.getCallback())
+
+    client.run()
+    
+    
+    
