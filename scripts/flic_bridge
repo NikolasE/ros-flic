@@ -3,7 +3,7 @@
 from flic import flic
 import rospy
 from std_msgs.msg import String
-from flic_button.msg import flic_button
+from flic_button.msg import press_event, connectivity_event
 
 # adapted from https://github.com/50ButtonsEach/fliclib-linux-dist/blob/master/samples/python/main.py
 
@@ -12,7 +12,8 @@ class ButtonEventListener(flic.ButtonEventListener):
 
     def __init__(self):
         super(ButtonEventListener,self).__init__()
-        self.fo_pub = rospy.Publisher('flic_events', flic_button, queue_size=10)
+        self.press_pub = rospy.Publisher('~press_events', press_event, queue_size=10)
+        self.connection_pub = rospy.Publisher('~connection_events', connectivity_event, queue_size=10)
 
     def onReady(self, deviceId):
         print "ready", deviceId
@@ -31,36 +32,41 @@ class ButtonEventListener(flic.ButtonEventListener):
     def onBatteryStatus(self, deviceId, battery):
         print "Battery", battery
 
-    def onButtonSingleOrDoubleClickOrHold(self, deviceId, queued, timeDiff, isSingle, isDouble, isHold):
-        msg = flic_button()
-        msg.deviceId = deviceId
-        msg.name = self.deviceId2Name(deviceId)
-        msg.isSingle = isSingle
-        msg.isDouble = isDouble
-        msg.isHold = isHold
-        self.sendRosMsg(msg)
         
     def onConnecting(self, deviceId):
         print "Connecting", deviceId 
-        
+        msg = connectivity_event(deviceId =  deviceId)
+        msg.connected = True
+        self.sendMsg(self.connection_pub, msg)
+     
     def onDisconnect(self, deviceId):
         print "Disconnected", deviceId
-        
+        msg = connectivity_event(deviceId =  deviceId)
+        msg.disconnected = True
+        self.sendMsg(self.connection_pub, msg)
+     
+    def onButtonSingleOrDoubleClickOrHold(self, deviceId, queued, timeDiff, isSingle, isDouble, isHold):
+        msg = press_event(deviceId = deviceId)
+        msg.isSingle = isSingle
+        msg.isDouble = isDouble
+        msg.isHold = isHold
+        self.sendMsg(self.press_pub, msg)
+     
     def onButtonUpOrDown(self, deviceId, queued, timeDiff, isUp, isDown):
-        # manager = client.getManager()
-        # button = manager.getButton(deviceId)
-        msg = flic_button()
-        msg.deviceId = deviceId
-        msg.name = self.deviceId2Name(deviceId)
+        msg = press_event(deviceId =  deviceId)
         msg.isUp = isUp
         msg.isDown = isDown
-        self.sendRosMsg(msg)        
-        # print(button.getDeviceId() + (" up" if isUp else " down"))
-
-    def sendRosMsg(self, rosMsg):
-        self.fo_pub.publish(rosMsg)
+        self.sendMsg(self.press_pub, msg)
+       
+        
+    def sendMsg(self, publisher, msg):
+        assert(isinstance(msg, press_event) or isinstance(msg, connectivity_event))
+        msg.stamp = rospy.get_rostime()
+        msg.name = self.deviceId2Name(msg.deviceId)
+        
+        publisher.publish(msg)
         rospy.sleep(0.2)
-        # print "publishing"
+
 
 
 def addButtonEventListener(button):

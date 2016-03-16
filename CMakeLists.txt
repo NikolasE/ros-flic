@@ -42,7 +42,8 @@ find_package(catkin REQUIRED COMPONENTS message_generation std_msgs )
 ## Generate messages in the 'msg' folder
  add_message_files(
    FILES
-   flic_button.msg
+   connectivity_event.msg
+   press_event.msg
 #   Message2.msg
  )
 

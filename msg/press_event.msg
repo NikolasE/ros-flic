@@ -1,3 +1,4 @@
+time stamp       
 string deviceId
 string name
 bool isSingle
